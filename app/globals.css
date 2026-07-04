@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", system-ui,
+    sans-serif;
+  background-color: #f8fafc;
+}
+
+/* Google Places の検索候補（.pac-container）は <body> 直下に追加される仕組みのため、
+   ボトムシートなど画面上の他の要素の裏に隠れてタップできなくなることがある。
+   常に最前面・タップ可能な状態を保証する。 */
+.pac-container {
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
