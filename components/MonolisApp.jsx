@@ -6,7 +6,7 @@ import {
   Moon, Sun, X, Check, Users, Calendar, MapPin, Link2, Plane,
   Home, FileText, Image as ImageIcon, Ticket, ChevronRight, Trash2,
   GripVertical, Bell, TrendingUp, ArrowRight, Sparkles, Briefcase, JapaneseYen,
-  Loader2, User, Wand2, Map as MapIcon, Compass, MessageSquare
+  Loader2, User, Wand2, Map as MapIcon, Compass, MessageSquare, ShoppingBag
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { loadGoogleMaps } from "../lib/googleMaps";
@@ -19,6 +19,7 @@ import {
 import SharedMapTab from "./SharedMapTab";
 import TripHome from "./TripHome";
 import MemoriesTab from "./MemoriesTab";
+import ProcurementTab from "./ProcurementTab";
 
 // Brand assets (served from /public)
 const LOGO_ICON = "/logo-icon.png";
@@ -1631,6 +1632,7 @@ const TABS = [
   { key: "prep", label: "準備", icon: Briefcase },
   { key: "money", label: "お金", icon: JapaneseYen },
   { key: "memories", label: "思い出", icon: ImageIcon },
+  { key: "procurement", label: "調達", icon: ShoppingBag },
   { key: "other", label: "その他", icon: MoreHorizontal },
 ];
 
@@ -1726,11 +1728,12 @@ function TripDetail({ trip, updateTrip, onBack, currentMember, onSearchActiveCha
         {tab === "prep" && <PrepTab trip={trip} updateTrip={updateTrip} currentMember={currentMember} subTab={prepSubTab} setSubTab={setPrepSubTab} />}
         {tab === "money" && <MoneyTab trip={trip} updateTrip={updateTrip} />}
         {tab === "memories" && <MemoriesTab trip={trip} currentMember={currentMember} />}
+        {tab === "procurement" && <ProcurementTab />}
         {tab === "other" && <OtherTab trip={trip} updateTrip={updateTrip} />}
       </div>
 
       <div className="shrink-0 z-30 bg-white/90 dark:bg-neutral-900/90 backdrop-blur-md border-t border-neutral-100 dark:border-neutral-800">
-        <div className="max-w-md mx-auto grid grid-cols-6">
+        <div className="max-w-md mx-auto grid grid-cols-7">
           {TABS.map((t) => {
             const active = tab === t.key;
             return (

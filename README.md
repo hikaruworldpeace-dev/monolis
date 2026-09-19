@@ -43,6 +43,10 @@ cp .env.local.example .env.local
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# 調達タブ（楽天市場の商品検索）に必要。サーバー側のみで使うため NEXT_PUBLIC_ は付けない
+RAKUTEN_APPLICATION_ID=xxxxxxxxxxxxxxxx
+RAKUTEN_AFFILIATE_ID=xxxxxxxxxxxxxxx
 ```
 
 ## 4. ローカルで動かす
@@ -57,10 +61,11 @@ npm run dev
 ## 5. Vercelに反映する
 
 1. Vercelのプロジェクト画面 →「Settings」→「Environment Variables」
-2. 以下の3つを追加（Production / Preview / Development すべてにチェック）
+2. 以下を追加（Production / Preview / Development すべてにチェック）
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
+   - `RAKUTEN_APPLICATION_ID` / `RAKUTEN_AFFILIATE_ID`（調達タブを使う場合）
 3. 「Deployments」タブから最新のデプロイの「Redeploy」を実行
 
 ---
@@ -88,6 +93,18 @@ npm run dev
 - フルスクリーン表示中にゴミ箱アイコンを押すと、その投稿を削除できます（ファイル本体もStorageから削除されます）
 
 利用には、Supabase側で `memories` Storageバケット（Public・50MB上限）と、`memories` テーブル・RPC関数（`get_trip_memories` / `add_memory` / `delete_memory`）の作成が必要です。設定内容は `supabase-schema.sql` に追記してあります。
+
+---
+
+## 調達タブ（楽天市場の商品検索）の使い方
+
+旅行詳細画面のタブに「調達」があります。持ち物として欲しいものをキーワード検索すると、楽天市場の商品を一覧で見られます。
+
+- 検索バーにキーワードを入力すると、`/api/rakuten/search` 経由で楽天市場商品検索APIを呼び出します
+- 商品をタップすると、新しいタブで商品ページ（アフィリエイトIDを設定していればアフィリエイトリンク）が開きます
+- 商品検索・リンク生成は `app/api/rakuten/search/route.js` でサーバー側のみで行われ、`RAKUTEN_APPLICATION_ID` / `RAKUTEN_AFFILIATE_ID` はブラウザに一切渡りません
+
+利用には、[楽天ウェブサービス](https://webservice.rakuten.co.jp/)でアプリID（`RAKUTEN_APPLICATION_ID`）を、[楽天アフィリエイト](https://affiliate.rakuten.co.jp/)でアフィリエイトID（`RAKUTEN_AFFILIATE_ID`、任意）を取得し、環境変数に設定してください。アフィリエイトIDが未設定でも検索自体は動作します（その場合は通常の商品URLが使われます）。
 
 ---
 
@@ -143,12 +160,14 @@ monolis-app/
 │   ├── api/admin/
 │   │   ├── stats/route.js         # 集計データを返すAPI
 │   │   └── trips/[id]/route.js    # 旅行削除（モデレーション）API
+│   ├── api/rakuten/search/route.js  # 調達タブ用: 楽天市場商品検索API
 │   └── globals.css
 ├── components/
 │   ├── MonolisApp.jsx      # アプリ本体（データ取得・全画面）
 │   ├── SharedMapTab.jsx    # みんなの地図（検索・投票・コメント・旅程確定）
 │   ├── TripHome.jsx        # 旅行詳細のホーム画面
-│   └── MemoriesTab.jsx     # 思い出タブ（画像・動画の投稿・一覧・削除）
+│   ├── MemoriesTab.jsx     # 思い出タブ（画像・動画の投稿・一覧・削除）
+│   └── ProcurementTab.jsx  # 調達タブ（楽天市場の商品検索）
 ├── lib/
 │   ├── supabaseClient.js   # Supabaseクライアントの初期化（ブラウザ用・anon key）
 │   ├── supabaseAdmin.js    # Supabase管理者クライアント（サーバー専用・service role key）
