@@ -265,3 +265,104 @@ $$;
 
 grant execute on function public.submit_feedback(uuid, text, text, text) to anon, authenticated;
 
+-- ============================================================
+-- 思い出タブ（画像・動画投稿）
+-- 追記のみ。既存のテーブルには影響しません。
+-- ファイルの実体は Storage の "memories" バケットに置き、このテーブルには
+-- そのパスとメタデータだけを保存する。
+-- ============================================================
+
+-- Storageバケットの作成は SQL Editor ではなく、
+-- ダッシュボードの「Storage」→「New bucket」から以下の設定で作成してください：
+--   名前: memories
+--   Public bucket: ON（画像・動画を公開URLで配信するため）
+--   File size limit: 50MB
+--   Allowed MIME types: image/jpeg, image/png, image/webp, image/gif,
+--                        video/mp4, video/quicktime, video/webm
+
+create table if not exists public.memories (
+  id uuid primary key default gen_random_uuid(),
+  trip_id uuid not null references public.trips(id) on delete cascade,
+  member_id uuid references public.trip_members(id) on delete set null,
+  member_name text,
+  type text not null check (type in ('image', 'video')),
+  storage_path text not null,
+  caption text,
+  created_at timestamptz not null default now()
+);
+
+alter table public.memories enable row level security;
+
+-- 実在する旅行のIDフォルダ配下にだけ、アップロード・削除を許可する
+-- （Storageの「Policies」から、bucket_id = 'memories' を対象に以下相当のポリシーを作成）
+create policy "memories_insert_valid_trip"
+on storage.objects for insert
+with check (
+  bucket_id = 'memories'
+  and exists (select 1 from public.trips t where t.id::text = (storage.foldername(objects.name))[1])
+);
+
+create policy "memories_delete_valid_trip"
+on storage.objects for delete
+using (
+  bucket_id = 'memories'
+  and exists (select 1 from public.trips t where t.id::text = (storage.foldername(objects.name))[1])
+);
+
+create or replace function public.get_trip_memories(p_trip_id uuid)
+returns setof public.memories
+language sql
+security definer
+set search_path = public
+as $$
+  select * from public.memories
+  where trip_id = p_trip_id
+  order by created_at desc;
+$$;
+
+create or replace function public.add_memory(
+  p_trip_id uuid,
+  p_member_id uuid,
+  p_member_name text,
+  p_type text,
+  p_storage_path text,
+  p_caption text
+)
+returns public.memories
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_row public.memories;
+begin
+  if not exists (select 1 from public.trips where id = p_trip_id) then
+    raise exception 'trip not found';
+  end if;
+  if p_type not in ('image', 'video') then
+    raise exception 'invalid type';
+  end if;
+
+  insert into public.memories (trip_id, member_id, member_name, type, storage_path, caption)
+  values (p_trip_id, p_member_id, p_member_name, p_type, p_storage_path, nullif(p_caption, ''))
+  returning * into new_row;
+
+  return new_row;
+end;
+$$;
+
+create or replace function public.delete_memory(p_id uuid, p_trip_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  delete from public.memories where id = p_id and trip_id = p_trip_id;
+end;
+$$;
+
+grant execute on function public.get_trip_memories(uuid) to anon, authenticated;
+grant execute on function public.add_memory(uuid, uuid, text, text, text, text) to anon, authenticated;
+grant execute on function public.delete_memory(uuid, uuid) to anon, authenticated;
+
