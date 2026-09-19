@@ -295,18 +295,33 @@ alter table public.memories enable row level security;
 
 -- 実在する旅行のIDフォルダ配下にだけ、アップロード・削除を許可する
 -- （Storageの「Policies」から、bucket_id = 'memories' を対象に以下相当のポリシーを作成）
+--
+-- 注意: trips テーブルはRLSが「ポリシーなしで全拒否」なので、このポリシーの中で
+-- trips を直接サブクエリすると anon からは常に false になり弾かれてしまう。
+-- SECURITY DEFINER 関数でラップして、存在チェックだけ RLS をバイパスする。
+create or replace function public.trip_exists(p_trip_id text)
+returns boolean
+language sql
+security definer
+set search_path = public
+as $$
+  select exists(select 1 from public.trips where id::text = p_trip_id);
+$$;
+
+grant execute on function public.trip_exists(text) to anon, authenticated;
+
 create policy "memories_insert_valid_trip"
 on storage.objects for insert
 with check (
   bucket_id = 'memories'
-  and exists (select 1 from public.trips t where t.id::text = (storage.foldername(objects.name))[1])
+  and public.trip_exists((storage.foldername(objects.name))[1])
 );
 
 create policy "memories_delete_valid_trip"
 on storage.objects for delete
 using (
   bucket_id = 'memories'
-  and exists (select 1 from public.trips t where t.id::text = (storage.foldername(objects.name))[1])
+  and public.trip_exists((storage.foldername(objects.name))[1])
 );
 
 create or replace function public.get_trip_memories(p_trip_id uuid)
