@@ -78,6 +78,19 @@ npm run dev
 
 ---
 
+## 思い出タブ（画像・動画投稿）の使い方
+
+旅行詳細画面のタブに「思い出」があります。ここでは、旅行中に撮った写真・動画をみんなで投稿し合えます。
+
+- 右上の「投稿する」から画像または動画を選択すると、プレビューとコメント入力（任意）が表示されます
+- 画像はアップロード前に自動でリサイズ・圧縮されます。動画はそのまま（最大50MB）アップロードされます
+- 投稿された思い出は新しい順にグリッド表示され、タップするとフルスクリーンで見られます
+- フルスクリーン表示中にゴミ箱アイコンを押すと、その投稿を削除できます（ファイル本体もStorageから削除されます）
+
+利用には、Supabase側で `memories` Storageバケット（Public・50MB上限）と、`memories` テーブル・RPC関数（`get_trip_memories` / `add_memory` / `delete_memory`）の作成が必要です。設定内容は `supabase-schema.sql` に追記してあります。
+
+---
+
 ## 運営者用ダッシュボード（/admin）
 
 サービス全体の状況（総旅行数、メンバー数、直近の作成推移、地図のスポット数・コメント数・投票数、最近の旅行一覧）を確認できる、運営者専用の画面です。パスワードで保護されています。
@@ -133,14 +146,17 @@ monolis-app/
 │   └── globals.css
 ├── components/
 │   ├── MonolisApp.jsx      # アプリ本体（データ取得・全画面）
-│   └── SharedMapTab.jsx    # みんなの地図（検索・投票・コメント・旅程確定）
+│   ├── SharedMapTab.jsx    # みんなの地図（検索・投票・コメント・旅程確定）
+│   ├── TripHome.jsx        # 旅行詳細のホーム画面
+│   └── MemoriesTab.jsx     # 思い出タブ（画像・動画の投稿・一覧・削除）
 ├── lib/
 │   ├── supabaseClient.js   # Supabaseクライアントの初期化（ブラウザ用・anon key）
 │   ├── supabaseAdmin.js    # Supabase管理者クライアント（サーバー専用・service role key）
 │   ├── adminAuth.js        # 管理者パスワードの検証
 │   ├── googleMaps.js       # Google Maps JS APIの読み込み
 │   ├── geo.js               # 距離計算・簡易ルート最適化
-│   └── localTrips.js        # 端末（ブラウザ）側の参加旅行・名前の保存
+│   ├── localTrips.js        # 端末（ブラウザ）側の参加旅行・名前の保存
+│   └── uploadMedia.js       # 思い出タブ用: 画像圧縮・Storageアップロード
 ├── public/
 │   ├── logo-icon.png
 │   └── logo-full.png
