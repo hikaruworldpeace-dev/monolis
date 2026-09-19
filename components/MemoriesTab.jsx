@@ -23,9 +23,9 @@ export default function MemoriesTab({ trip, currentMember }) {
   const [memories, setMemories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ done: 0, total: 0 });
   const [uploadError, setUploadError] = useState("");
-  const [pendingFile, setPendingFile] = useState(null);
-  const [caption, setCaption] = useState("");
+  const [pendingFiles, setPendingFiles] = useState([]);
   const [viewing, setViewing] = useState(null);
   const fileInputRef = useRef(null);
 
@@ -43,41 +43,48 @@ export default function MemoriesTab({ trip, currentMember }) {
   const openPicker = () => fileInputRef.current?.click();
 
   const onFileSelected = (e) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = "";
-    if (!file) return;
+    if (files.length === 0) return;
     setUploadError("");
-    setPendingFile(file);
-    setCaption("");
+    setPendingFiles(files);
+  };
+
+  const removePendingFile = (idx) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const cancelPending = () => {
     if (uploading) return;
-    setPendingFile(null);
-    setCaption("");
+    setPendingFiles([]);
     setUploadError("");
   };
 
   const submitPending = async () => {
-    if (!pendingFile) return;
+    if (pendingFiles.length === 0) return;
     setUploading(true);
     setUploadError("");
-    try {
-      await uploadMemory({
-        file: pendingFile,
-        tripId: trip.id,
-        memberId: currentMember?.id || null,
-        memberName: currentMember?.name || null,
-        caption: caption.trim(),
-      });
-      setPendingFile(null);
-      setCaption("");
-      await load();
-    } catch (err) {
-      setUploadError(err.message || "アップロードに失敗しました");
-    } finally {
-      setUploading(false);
+    setUploadProgress({ done: 0, total: pendingFiles.length });
+
+    let failedCount = 0;
+    for (const file of pendingFiles) {
+      try {
+        await uploadMemory({
+          file,
+          tripId: trip.id,
+          memberId: currentMember?.id || null,
+          memberName: currentMember?.name || null,
+        });
+      } catch {
+        failedCount += 1;
+      }
+      setUploadProgress((prev) => ({ ...prev, done: prev.done + 1 }));
     }
+
+    setUploading(false);
+    setPendingFiles([]);
+    if (failedCount > 0) setUploadError(`${failedCount}件のアップロードに失敗しました`);
+    await load();
   };
 
   const removeMemory = async (memory) => {
@@ -103,7 +110,14 @@ export default function MemoriesTab({ trip, currentMember }) {
         >
           <Plus size={14} /> 投稿する
         </button>
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={onFileSelected} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          className="hidden"
+          onChange={onFileSelected}
+        />
       </div>
 
       {loading && (
@@ -132,38 +146,44 @@ export default function MemoriesTab({ trip, currentMember }) {
                   </div>
                 </>
               ) : (
-                <img src={getMemoryUrl(m.storage_path)} alt={m.caption || ""} className="w-full h-full object-cover" />
+                <img src={getMemoryUrl(m.storage_path)} alt="" className="w-full h-full object-cover" />
               )}
             </button>
           ))}
         </div>
       )}
 
-      {pendingFile && (
+      {pendingFiles.length > 0 && (
         <div className="fixed inset-0 z-40 flex items-end justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={cancelPending} />
           <div className="relative w-full max-w-md bg-white dark:bg-neutral-900 rounded-t-[20px] max-h-[88vh] overflow-y-auto">
             <div className="sticky top-0 bg-white dark:bg-neutral-900 pt-3 pb-2 px-5 flex items-center justify-between border-b border-neutral-100 dark:border-neutral-800">
               <div className="w-8" />
-              <h3 className="text-[15px] font-semibold text-neutral-900 dark:text-white">思い出を投稿</h3>
+              <h3 className="text-[15px] font-semibold text-neutral-900 dark:text-white">{pendingFiles.length}件を投稿</h3>
               <button onClick={cancelPending} className="w-8 h-8 flex items-center justify-center rounded-full bg-neutral-100 dark:bg-neutral-800">
                 <X size={16} className="text-neutral-500" />
               </button>
             </div>
             <div className="p-5 space-y-4">
-              <div className="rounded-[14px] overflow-hidden bg-neutral-100 dark:bg-neutral-800 max-h-64 flex items-center justify-center">
-                {pendingFile.type.startsWith("video/") ? (
-                  <video src={URL.createObjectURL(pendingFile)} className="max-h-64 w-full object-contain" controls />
-                ) : (
-                  <img src={URL.createObjectURL(pendingFile)} alt="" className="max-h-64 w-full object-contain" />
-                )}
+              <div className="grid grid-cols-3 gap-1.5">
+                {pendingFiles.map((file, idx) => (
+                  <div key={idx} className="relative aspect-square rounded-[10px] overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+                    {file.type.startsWith("video/") ? (
+                      <video src={URL.createObjectURL(file)} className="w-full h-full object-cover" muted playsInline />
+                    ) : (
+                      <img src={URL.createObjectURL(file)} alt="" className="w-full h-full object-cover" />
+                    )}
+                    {!uploading && (
+                      <button
+                        onClick={() => removePendingFile(idx)}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/60 flex items-center justify-center"
+                      >
+                        <X size={12} className="text-white" />
+                      </button>
+                    )}
+                  </div>
+                ))}
               </div>
-              <input
-                value={caption}
-                onChange={(e) => setCaption(e.target.value)}
-                placeholder="コメント（任意）"
-                className="w-full rounded-[14px] bg-neutral-50 dark:bg-neutral-800 border border-transparent focus:border-[#4F8EF7] outline-none px-4 h-12 text-[15px] text-neutral-900 dark:text-white placeholder:text-neutral-400 transition-colors"
-              />
               {uploadError && <p className="text-[12px] text-red-500">{uploadError}</p>}
               <button
                 disabled={uploading}
@@ -171,7 +191,14 @@ export default function MemoriesTab({ trip, currentMember }) {
                 className="w-full h-12 rounded-[14px] text-white font-medium text-[15px] disabled:opacity-40 flex items-center justify-center gap-2"
                 style={{ background: ACCENT }}
               >
-                {uploading ? <Loader2 size={16} className="animate-spin" /> : "投稿する"}
+                {uploading ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    {uploadProgress.done}/{uploadProgress.total}件アップロード中...
+                  </>
+                ) : (
+                  `${pendingFiles.length}件を投稿する`
+                )}
               </button>
             </div>
           </div>
@@ -195,14 +222,9 @@ export default function MemoriesTab({ trip, currentMember }) {
             {viewing.type === "video" ? (
               <video src={getMemoryUrl(viewing.storage_path)} className="max-w-full max-h-full" controls autoPlay />
             ) : (
-              <img src={getMemoryUrl(viewing.storage_path)} alt={viewing.caption || ""} className="max-w-full max-h-full object-contain" />
+              <img src={getMemoryUrl(viewing.storage_path)} alt="" className="max-w-full max-h-full object-contain" />
             )}
           </div>
-          {viewing.caption && (
-            <div className="px-5 py-4 shrink-0">
-              <p className="text-[14px] text-white/90">{viewing.caption}</p>
-            </div>
-          )}
         </div>
       )}
     </div>
