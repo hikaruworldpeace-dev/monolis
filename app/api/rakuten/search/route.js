@@ -55,7 +55,7 @@ export async function GET(request) {
 
     console.log(
       "[rakuten search] ok",
-      JSON.stringify({ keyword, count: data.count, hits: data.hits, itemsLength: (data.Items || []).length })
+      JSON.stringify({ keyword, keys: Object.keys(data), raw: JSON.stringify(data).slice(0, 800) })
     );
 
     const items = (data.Items || []).map(({ Item }) => ({
