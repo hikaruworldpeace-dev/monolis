@@ -8,10 +8,40 @@
 //
 // 新エンドポイントは、楽天ウェブサービスにアプリ登録した「アプリケーションURL」を
 // Refererヘッダーで検証する（REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING）。
-// サーバー間通信ではRefererが自然には付かないため、明示的に送る必要がある。
+// Referer は fetch() の headers に指定しても実際には送信されない「forbidden
+// header」のため、Node.jsの https モジュールで直接リクエストを組み立てる。
 
-const ENDPOINT = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701";
+import https from "node:https";
+
+export const runtime = "nodejs";
+
+const ENDPOINT_HOST = "openapi.rakuten.co.jp";
+const ENDPOINT_PATH = "/ichibams/api/IchibaItem/Search/20260701";
 const APP_REFERRER = "https://monolis-delta.vercel.app/";
+
+function fetchRakuten(query) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      {
+        hostname: ENDPOINT_HOST,
+        path: `${ENDPOINT_PATH}?${query}`,
+        headers: { Referer: APP_REFERRER },
+      },
+      (res) => {
+        let body = "";
+        res.on("data", (chunk) => (body += chunk));
+        res.on("end", () => {
+          try {
+            resolve({ status: res.statusCode, data: JSON.parse(body) });
+          } catch (err) {
+            reject(err);
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+  });
+}
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -43,16 +73,13 @@ export async function GET(request) {
   });
 
   try {
-    const res = await fetch(`${ENDPOINT}?${params.toString()}`, {
-      headers: { Referer: APP_REFERRER },
-    });
-    const data = await res.json();
+    const { status, data } = await fetchRakuten(params.toString());
 
     if (data.error || data.errors) {
       console.error(
         "[rakuten search] rakuten api error",
         JSON.stringify({
-          httpStatus: res.status,
+          httpStatus: status,
           error: data.error || data.errors?.errorCode,
           error_description: data.error_description || data.errors?.errorMessage,
         })
