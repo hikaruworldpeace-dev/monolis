@@ -7,7 +7,7 @@
 // 自動で付与されるため、旧来の affiliateId パラメータ・affiliateUrl は不要。
 //
 // 新エンドポイントは、楽天ウェブサービスにアプリ登録した「アプリケーションURL」を
-// Refererヘッダーで検証する（REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING）。
+// Referer/Originヘッダーで検証する（REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING）。
 // Referer は fetch() の headers に指定しても実際には送信されない「forbidden
 // header」のため、Node.jsの https モジュールで直接リクエストを組み立てる。
 
@@ -43,7 +43,6 @@ function fetchRakuten(query) {
         });
       }
     );
-    console.log("[rakuten search] request headers", JSON.stringify(req.getHeaders()));
     req.on("error", reject);
   });
 }
