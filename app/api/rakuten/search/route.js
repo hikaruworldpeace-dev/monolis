@@ -5,8 +5,13 @@
 // （openapi.rakuten.co.jp配下）+ accessKeyでの認証に切り替わった。
 // 新エンドポイントの応答では itemUrl に rafcid（トラッキング用パラメータ）が
 // 自動で付与されるため、旧来の affiliateId パラメータ・affiliateUrl は不要。
+//
+// 新エンドポイントは、楽天ウェブサービスにアプリ登録した「アプリケーションURL」を
+// Refererヘッダーで検証する（REQUEST_CONTEXT_BODY_HTTP_REFERRER_MISSING）。
+// サーバー間通信ではRefererが自然には付かないため、明示的に送る必要がある。
 
 const ENDPOINT = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701";
+const APP_REFERRER = "https://monolis-delta.vercel.app/";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -38,25 +43,25 @@ export async function GET(request) {
   });
 
   try {
-    const res = await fetch(`${ENDPOINT}?${params.toString()}`);
+    const res = await fetch(`${ENDPOINT}?${params.toString()}`, {
+      headers: { Referer: APP_REFERRER },
+    });
     const data = await res.json();
 
-    if (data.error) {
+    if (data.error || data.errors) {
       console.error(
         "[rakuten search] rakuten api error",
         JSON.stringify({
           httpStatus: res.status,
-          error: data.error,
-          error_description: data.error_description,
+          error: data.error || data.errors?.errorCode,
+          error_description: data.error_description || data.errors?.errorMessage,
         })
       );
-      return Response.json({ error: data.error_description || "楽天APIエラー" }, { status: 502 });
+      return Response.json(
+        { error: data.error_description || data.errors?.errorMessage || "楽天APIエラー" },
+        { status: 502 }
+      );
     }
-
-    console.log(
-      "[rakuten search] ok",
-      JSON.stringify({ keyword, keys: Object.keys(data), raw: JSON.stringify(data).slice(0, 800) })
-    );
 
     const items = (data.Items || []).map(({ Item }) => ({
       code: Item.itemCode,
