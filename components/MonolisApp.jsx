@@ -1165,6 +1165,7 @@ function ItineraryTab({ trip, updateTrip }) {
 
 function MoneyTab({ trip, updateTrip }) {
   const [addOpen, setAddOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null); // null = 新規記録, 値あり = そのIDの支払いを編集中
   const [who, setWho] = useState(trip.members[0]?.id || "");
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
@@ -1216,23 +1217,59 @@ function MoneyTab({ trip, updateTrip }) {
     setForIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const addExpense = () => {
-    const amt = Number(amount);
-    if (!who || !amt || amt <= 0 || forIds.length === 0) return;
-    const newExpense = {
-      id: `e${Date.now()}`,
-      who,
-      amount: amt,
-      category: category.trim() || "その他",
-      for: forIds,
-    };
-    updateTrip({ ...trip, expenses: [...trip.expenses, newExpense] });
+  const closeSheet = () => {
+    setAddOpen(false);
+    setEditingId(null);
+    setWhoPickerOpen(false);
+    setForPickerOpen(false);
+  };
+
+  const openAddSheet = () => {
+    setEditingId(null);
+    setWho(trip.members[0]?.id || "");
     setAmount("");
     setCategory("");
     setForIds(allMemberIds);
     setWhoPickerOpen(false);
     setForPickerOpen(false);
-    setAddOpen(false);
+    setAddOpen(true);
+  };
+
+  const openEditSheet = (e) => {
+    setEditingId(e.id);
+    setWho(e.who);
+    setAmount(String(e.amount));
+    setCategory(e.category === "その他" ? "" : e.category);
+    setForIds(e.for && e.for.length ? e.for : allMemberIds);
+    setWhoPickerOpen(false);
+    setForPickerOpen(false);
+    setAddOpen(true);
+  };
+
+  const saveExpense = () => {
+    const amt = Number(amount);
+    if (!who || !amt || amt <= 0 || forIds.length === 0) return;
+    const payload = {
+      who,
+      amount: amt,
+      category: category.trim() || "その他",
+      for: forIds,
+    };
+    if (editingId) {
+      updateTrip({
+        ...trip,
+        expenses: trip.expenses.map((e) => (e.id === editingId ? { ...e, ...payload } : e)),
+      });
+    } else {
+      updateTrip({ ...trip, expenses: [...trip.expenses, { id: `e${Date.now()}`, ...payload }] });
+    }
+    closeSheet();
+  };
+
+  const deleteEditingExpense = () => {
+    if (!editingId) return;
+    updateTrip({ ...trip, expenses: trip.expenses.filter((e) => e.id !== editingId) });
+    closeSheet();
   };
 
   const whoMember = memberOf(who);
@@ -1306,17 +1343,28 @@ function MoneyTab({ trip, updateTrip }) {
             const isPartialSplit = coveredIds.length < trip.members.length;
             return (
               <div key={e.id} className="flex items-center gap-3 px-4 py-2.5">
-                {m && <Avatar member={m} size={24} />}
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] text-neutral-700 dark:text-neutral-200">{e.category}</div>
-                  {isPartialSplit && (
-                    <div className="text-[11px] text-neutral-400 mt-0.5">
-                      {coveredIds.map((id) => memberOf(id)?.name).filter(Boolean).join("・")} で割り勘
-                    </div>
-                  )}
-                </div>
-                <div className="text-[13px] font-medium text-neutral-900 dark:text-white">¥{e.amount.toLocaleString()}</div>
-                <button onClick={() => removeExpense(e.id)} className="text-neutral-300">
+                <button
+                  onClick={() => openEditSheet(e)}
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                >
+                  {m && <Avatar member={m} size={24} />}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[13px] text-neutral-700 dark:text-neutral-200">{e.category}</div>
+                    {isPartialSplit && (
+                      <div className="text-[11px] text-neutral-400 mt-0.5">
+                        {coveredIds.map((id) => memberOf(id)?.name).filter(Boolean).join("・")} で割り勘
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-[13px] font-medium text-neutral-900 dark:text-white">¥{e.amount.toLocaleString()}</div>
+                </button>
+                <button
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    removeExpense(e.id);
+                  }}
+                  className="text-neutral-300 shrink-0"
+                >
                   <X size={14} />
                 </button>
               </div>
@@ -1327,7 +1375,7 @@ function MoneyTab({ trip, updateTrip }) {
       </div>
 
       <button
-        onClick={() => setAddOpen(true)}
+        onClick={openAddSheet}
         className="w-full h-11 rounded-[14px] text-white text-[13px] font-medium flex items-center justify-center gap-1.5"
         style={{ background: ACCENT }}
       >
@@ -1336,12 +1384,8 @@ function MoneyTab({ trip, updateTrip }) {
 
       <Sheet
         open={addOpen}
-        onClose={() => {
-          setAddOpen(false);
-          setWhoPickerOpen(false);
-          setForPickerOpen(false);
-        }}
-        title="支払いを記録"
+        onClose={closeSheet}
+        title={editingId ? "支払いを編集" : "支払いを記録"}
       >
         <div className="space-y-4">
           {/* Walicaを参考にした「○○が○○の○○代で○○円かかった」の文章入力 */}
@@ -1449,12 +1493,21 @@ function MoneyTab({ trip, updateTrip }) {
 
           <button
             disabled={!who || !amount || forIds.length === 0}
-            onClick={addExpense}
+            onClick={saveExpense}
             className="w-full h-12 rounded-[14px] text-white font-medium text-[15px] disabled:opacity-40"
             style={{ background: ACCENT }}
           >
-            記録する
+            {editingId ? "保存する" : "記録する"}
           </button>
+          {editingId && (
+            <button
+              onClick={deleteEditingExpense}
+              className="w-full h-11 rounded-[14px] font-medium text-[14px]"
+              style={{ color: "#EF4444" }}
+            >
+              この記録を削除
+            </button>
+          )}
         </div>
       </Sheet>
     </div>
