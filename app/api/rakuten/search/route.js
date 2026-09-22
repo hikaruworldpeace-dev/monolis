@@ -1,8 +1,12 @@
 // 調達タブ用: 楽天市場商品検索APIをサーバー側から呼び出す。
-// applicationId / affiliateId はサーバー専用の環境変数に置き、ブラウザには渡さない
-// （affiliateId が漏れると第三者に不正利用されうるため）。
+// applicationId / accessKey はサーバー専用の環境変数に置き、ブラウザには渡さない。
+//
+// 2026-02に旧バージョンのIchibaItem検索APIが順次廃止され、新しいエンドポイント
+// （openapi.rakuten.co.jp配下）+ accessKeyでの認証に切り替わった。
+// 新エンドポイントの応答では itemUrl に rafcid（トラッキング用パラメータ）が
+// 自動で付与されるため、旧来の affiliateId パラメータ・affiliateUrl は不要。
 
-const ENDPOINT = "https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601";
+const ENDPOINT = "https://openapi.rakuten.co.jp/ichibams/api/IchibaItem/Search/20260701";
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
@@ -14,21 +18,24 @@ export async function GET(request) {
   }
 
   const applicationId = process.env.RAKUTEN_APPLICATION_ID;
-  if (!applicationId) {
-    return Response.json({ error: "楽天APIが設定されていません（RAKUTEN_APPLICATION_ID未設定）" }, { status: 500 });
+  const accessKey = process.env.RAKUTEN_ACCESS_KEY;
+  if (!applicationId || !accessKey) {
+    return Response.json(
+      { error: "楽天APIが設定されていません（RAKUTEN_APPLICATION_ID / RAKUTEN_ACCESS_KEY未設定）" },
+      { status: 500 }
+    );
   }
 
   const params = new URLSearchParams({
     applicationId,
+    accessKey,
     keyword,
+    genreId: "0",
     hits: "20",
     page,
     imageFlag: "1",
     format: "json",
   });
-  if (process.env.RAKUTEN_AFFILIATE_ID) {
-    params.set("affiliateId", process.env.RAKUTEN_AFFILIATE_ID);
-  }
 
   try {
     const res = await fetch(`${ENDPOINT}?${params.toString()}`);
@@ -41,8 +48,6 @@ export async function GET(request) {
           httpStatus: res.status,
           error: data.error,
           error_description: data.error_description,
-          applicationIdTail: applicationId.slice(-4),
-          applicationIdLength: applicationId.length,
         })
       );
       return Response.json({ error: data.error_description || "楽天APIエラー" }, { status: 502 });
@@ -52,7 +57,7 @@ export async function GET(request) {
       code: Item.itemCode,
       name: Item.itemName,
       price: Item.itemPrice,
-      url: Item.affiliateUrl || Item.itemUrl,
+      url: Item.itemUrl,
       imageUrl: Item.mediumImageUrls?.[0]?.imageUrl || null,
       shopName: Item.shopName,
       reviewAverage: Item.reviewAverage,

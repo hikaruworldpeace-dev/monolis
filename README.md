@@ -46,7 +46,7 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 # 調達タブ（楽天市場の商品検索）に必要。サーバー側のみで使うため NEXT_PUBLIC_ は付けない
 RAKUTEN_APPLICATION_ID=xxxxxxxxxxxxxxxx
-RAKUTEN_AFFILIATE_ID=xxxxxxxxxxxxxxx
+RAKUTEN_ACCESS_KEY=pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 ## 4. ローカルで動かす
@@ -65,7 +65,7 @@ npm run dev
    - `NEXT_PUBLIC_SUPABASE_URL`
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`
-   - `RAKUTEN_APPLICATION_ID` / `RAKUTEN_AFFILIATE_ID`（調達タブを使う場合）
+   - `RAKUTEN_APPLICATION_ID` / `RAKUTEN_ACCESS_KEY`（調達タブを使う場合）
 3. 「Deployments」タブから最新のデプロイの「Redeploy」を実行
 
 ---
@@ -101,10 +101,12 @@ npm run dev
 旅行詳細画面のタブに「調達」があります。持ち物として欲しいものをキーワード検索すると、楽天市場の商品を一覧で見られます。
 
 - 検索バーにキーワードを入力すると、`/api/rakuten/search` 経由で楽天市場商品検索APIを呼び出します
-- 商品をタップすると、新しいタブで商品ページ（アフィリエイトIDを設定していればアフィリエイトリンク）が開きます
-- 商品検索・リンク生成は `app/api/rakuten/search/route.js` でサーバー側のみで行われ、`RAKUTEN_APPLICATION_ID` / `RAKUTEN_AFFILIATE_ID` はブラウザに一切渡りません
+- 商品をタップすると、新しいタブで商品ページが開きます（URLにはアフィリエイト追跡用のパラメータが自動で付与されます）
+- 商品検索は `app/api/rakuten/search/route.js` でサーバー側のみで行われ、`RAKUTEN_APPLICATION_ID` / `RAKUTEN_ACCESS_KEY` はブラウザに一切渡りません
 
-利用には、[楽天ウェブサービス](https://webservice.rakuten.co.jp/)でアプリID（`RAKUTEN_APPLICATION_ID`）を、[楽天アフィリエイト](https://affiliate.rakuten.co.jp/)でアフィリエイトID（`RAKUTEN_AFFILIATE_ID`、任意）を取得し、環境変数に設定してください。アフィリエイトIDが未設定でも検索自体は動作します（その場合は通常の商品URLが使われます）。
+利用には、[楽天ウェブサービス](https://webservice.rakuten.co.jp/)でアプリを発行し、アプリ管理画面に表示される**アプリケーションID**（`RAKUTEN_APPLICATION_ID`）と**アクセスキー**（`RAKUTEN_ACCESS_KEY`）の両方を環境変数に設定してください。
+
+> 2026年2月に楽天ウェブサービスの旧バージョンAPIが順次廃止され、`app.rakuten.co.jp/services/api/...` 形式の旧エンドポイントは使えなくなりました。現在は `openapi.rakuten.co.jp/ichibams/api/...` 形式の新エンドポイントを使い、`applicationId` に加えて `accessKey` の送信が必須です（詳しくは[楽天ウェブサービスのAPIテストフォーム](https://webservice.rakuten.co.jp/explorer/api)で実際のリクエストURLを確認できます）。
 
 ---
 
