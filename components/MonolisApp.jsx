@@ -6,7 +6,7 @@ import {
   Moon, Sun, X, Check, Users, Calendar, MapPin, Link2, Plane,
   Home, FileText, Image as ImageIcon, Ticket, ChevronRight, Trash2,
   GripVertical, Bell, TrendingUp, ArrowRight, Sparkles, Briefcase, JapaneseYen,
-  Loader2, User, Wand2, Map as MapIcon, Compass, MessageSquare
+  Loader2, User, Wand2, Map as MapIcon, Compass, MessageSquare, Copy
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { loadGoogleMaps } from "../lib/googleMaps";
@@ -367,6 +367,11 @@ function PackingTab({ trip, updateTrip, currentMember }) {
   const [personalDraft, setPersonalDraft] = useState("");
   const [sharedDraft, setSharedDraft] = useState("");
   const [assigneePickerFor, setAssigneePickerFor] = useState(null); // 共有アイテムの担当編集中のID
+  const [pastPickerOpen, setPastPickerOpen] = useState(false);
+  const [pastTrips, setPastTrips] = useState(null); // null = 未取得
+  const [pastTripsLoading, setPastTripsLoading] = useState(false);
+  const [selectedPastTrip, setSelectedPastTrip] = useState(null); // { id, title, items: [{id,name}] }
+  const [pastItemChecks, setPastItemChecks] = useState({}); // itemId -> boolean
 
   const packing = normalizePacking(trip.packing, trip.members);
   const myId = currentMember?.id;
@@ -425,6 +430,53 @@ function PackingTab({ trip, updateTrip, currentMember }) {
 
   const memberOf = (id) => trip.members.find((m) => m.id === id);
   const aiSuggestions = ["水着", "日焼け止め", "帽子", "モバイルバッテリー", "サングラス", "ビーチサンダル"];
+
+  // 過去に参加した旅行の「みんなの持ち物」を、今回の旅行にまとめてコピーできる機能
+  const openPastPicker = async () => {
+    setPastPickerOpen(true);
+    setSelectedPastTrip(null);
+    if (pastTrips !== null) return;
+    setPastTripsLoading(true);
+    const ids = getLocalTripIds().filter((id) => id !== trip.id);
+    if (ids.length === 0) {
+      setPastTrips([]);
+      setPastTripsLoading(false);
+      return;
+    }
+    const { data } = await supabase.rpc("get_trips_with_members", { p_ids: ids });
+    setPastTrips(data || []);
+    setPastTripsLoading(false);
+  };
+
+  const closePastPicker = () => {
+    setPastPickerOpen(false);
+    setSelectedPastTrip(null);
+  };
+
+  const pickPastTrip = (pastTripRow) => {
+    const pastPacking = normalizePacking(pastTripRow.data?.packing, pastTripRow.members || []);
+    const items = pastPacking.shared.filter((i) => i.name);
+    setSelectedPastTrip({ id: pastTripRow.id, title: pastTripRow.title, items });
+    const checks = {};
+    items.forEach((i) => (checks[i.id] = true));
+    setPastItemChecks(checks);
+  };
+
+  const addSelectedPastItems = () => {
+    if (!selectedPastTrip) return;
+    const toAdd = selectedPastTrip.items.filter((i) => pastItemChecks[i.id]);
+    if (toAdd.length === 0) return;
+    const newItems = toAdd.map((i, idx) => ({
+      id: `p${Date.now()}${idx}`,
+      name: i.name,
+      done: false,
+      qty: i.qty || 1,
+      note: i.note || "",
+      assignedTo: [],
+    }));
+    save({ ...packing, shared: [...packing.shared, ...newItems] });
+    closePastPicker();
+  };
 
   return (
     <div className="px-5 pt-4 space-y-6">
@@ -487,7 +539,16 @@ function PackingTab({ trip, updateTrip, currentMember }) {
 
       {/* ---- みんなの持ち物（担当割り振り可） ---- */}
       <div>
-        <SectionLabel>みんなの持ち物</SectionLabel>
+        <div className="flex items-center justify-between">
+          <SectionLabel>みんなの持ち物</SectionLabel>
+          <button
+            onClick={openPastPicker}
+            className="flex items-center gap-1 text-[11px] font-medium px-2.5 h-6 rounded-full -mt-2"
+            style={{ color: ACCENT, background: "rgba(79,142,247,0.1)" }}
+          >
+            <Copy size={11} /> 過去の持ち物から追加
+          </button>
+        </div>
         <div className="rounded-[18px] bg-white dark:bg-neutral-900 shadow-sm overflow-hidden divide-y divide-neutral-100 dark:divide-neutral-800">
           {packing.shared.map((item) => {
             const assigned = (item.assignedTo || []).map(memberOf).filter(Boolean);
@@ -567,6 +628,91 @@ function PackingTab({ trip, updateTrip, currentMember }) {
             </button>
           ))}
         </div>
+      </Sheet>
+
+      <Sheet
+        open={pastPickerOpen}
+        onClose={closePastPicker}
+        title={selectedPastTrip ? selectedPastTrip.title : "過去の持ち物から追加"}
+      >
+        {!selectedPastTrip ? (
+          <>
+            {pastTripsLoading && (
+              <div className="flex items-center justify-center py-10 text-neutral-400 gap-2 text-[13px]">
+                <Loader2 size={16} className="animate-spin" /> 読み込み中...
+              </div>
+            )}
+            {!pastTripsLoading && pastTrips && pastTrips.length === 0 && (
+              <p className="text-[13px] text-neutral-400 text-center py-10">他に参加した旅行がまだありません</p>
+            )}
+            {!pastTripsLoading && pastTrips && pastTrips.length > 0 && (
+              <div className="space-y-2">
+                {pastTrips.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => pickPastTrip(t)}
+                    className="w-full text-left rounded-[14px] bg-neutral-50 dark:bg-neutral-800 px-4 py-3 flex items-center justify-between"
+                  >
+                    <div>
+                      <div className="text-[14px] font-medium text-neutral-800 dark:text-neutral-100">{t.title}</div>
+                      <div className="text-[12px] text-neutral-400 mt-0.5">{t.destination}・{t.start_date}〜</div>
+                    </div>
+                    <ChevronRight size={16} className="text-neutral-300 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="space-y-4">
+            <button
+              onClick={() => setSelectedPastTrip(null)}
+              className="text-[12px] flex items-center gap-1"
+              style={{ color: ACCENT }}
+            >
+              <ChevronLeft size={14} /> 旅行を選び直す
+            </button>
+            {selectedPastTrip.items.length === 0 ? (
+              <p className="text-[13px] text-neutral-400 text-center py-10">この旅行には持ち物がありません</p>
+            ) : (
+              <>
+                <p className="text-[12px] text-neutral-400">今回いらないものはタップして外してください</p>
+                <div className="rounded-[14px] bg-white dark:bg-neutral-900 shadow-sm divide-y divide-neutral-100 dark:divide-neutral-800 overflow-hidden">
+                  {selectedPastTrip.items.map((item) => {
+                    const checked = !!pastItemChecks[item.id];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setPastItemChecks((prev) => ({ ...prev, [item.id]: !prev[item.id] }))}
+                        className="w-full flex items-center gap-3 px-4 h-12"
+                      >
+                        <div
+                          className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 border-2 transition-colors"
+                          style={{ borderColor: checked ? ACCENT : "#E2E8F0", background: checked ? ACCENT : "transparent" }}
+                        >
+                          {checked && <Check size={13} className="text-white" />}
+                        </div>
+                        <span
+                          className={`text-[14px] ${checked ? "text-neutral-800 dark:text-neutral-100" : "text-neutral-400 line-through"}`}
+                        >
+                          {item.name}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <button
+              disabled={!Object.values(pastItemChecks).some(Boolean)}
+              onClick={addSelectedPastItems}
+              className="w-full h-12 rounded-[14px] text-white font-medium text-[15px] disabled:opacity-40"
+              style={{ background: ACCENT }}
+            >
+              追加する
+            </button>
+          </div>
+        )}
       </Sheet>
     </div>
   );
