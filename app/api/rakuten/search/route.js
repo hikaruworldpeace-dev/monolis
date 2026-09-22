@@ -25,7 +25,11 @@ function fetchRakuten(query) {
       {
         hostname: ENDPOINT_HOST,
         path: `${ENDPOINT_PATH}?${query}`,
-        headers: { Referer: APP_REFERRER },
+        headers: {
+          Referer: APP_REFERRER,
+          Origin: "https://monolis-delta.vercel.app",
+          "User-Agent": "Mozilla/5.0 (monolis)",
+        },
       },
       (res) => {
         let body = "";
@@ -39,6 +43,7 @@ function fetchRakuten(query) {
         });
       }
     );
+    console.log("[rakuten search] request headers", JSON.stringify(req.getHeaders()));
     req.on("error", reject);
   });
 }
