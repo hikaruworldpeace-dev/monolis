@@ -1169,9 +1169,10 @@ function MoneyTab({ trip, updateTrip }) {
   const [amount, setAmount] = useState("");
   const [category, setCategory] = useState("");
   const [forIds, setForIds] = useState(trip.members.map((m) => m.id));
+  const [whoPickerOpen, setWhoPickerOpen] = useState(false);
+  const [forPickerOpen, setForPickerOpen] = useState(false);
 
   const allMemberIds = trip.members.map((m) => m.id);
-  const showForSelector = trip.members.length > 2;
 
   const { totals, settlements, grandTotal } = useMemo(() => {
     const totals = {};
@@ -1210,8 +1211,6 @@ function MoneyTab({ trip, updateTrip }) {
 
   const memberOf = (id) => trip.members.find((m) => m.id === id);
   const maxTotal = Math.max(...Object.values(totals), 1);
-  const inputCls =
-    "w-full rounded-[14px] bg-neutral-50 dark:bg-neutral-800 border border-transparent focus:border-[#4F8EF7] outline-none px-4 h-12 text-[15px] text-neutral-900 dark:text-white placeholder:text-neutral-400 transition-colors";
 
   const toggleForId = (id) => {
     setForIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -1231,8 +1230,16 @@ function MoneyTab({ trip, updateTrip }) {
     setAmount("");
     setCategory("");
     setForIds(allMemberIds);
+    setWhoPickerOpen(false);
+    setForPickerOpen(false);
     setAddOpen(false);
   };
+
+  const whoMember = memberOf(who);
+  const forLabel =
+    forIds.length === trip.members.length
+      ? "みんな"
+      : forIds.map((id) => memberOf(id)?.name).filter(Boolean).join("・") || "だれか";
 
   const removeExpense = (id) => {
     updateTrip({ ...trip, expenses: trip.expenses.filter((e) => e.id !== id) });
@@ -1327,36 +1334,86 @@ function MoneyTab({ trip, updateTrip }) {
         <Plus size={14} /> 支払いを記録
       </button>
 
-      <Sheet open={addOpen} onClose={() => setAddOpen(false)} title="支払いを記録">
+      <Sheet
+        open={addOpen}
+        onClose={() => {
+          setAddOpen(false);
+          setWhoPickerOpen(false);
+          setForPickerOpen(false);
+        }}
+        title="支払いを記録"
+      >
         <div className="space-y-4">
-          <div>
-            <SectionLabel>誰が払ったか</SectionLabel>
-            <div className="flex flex-wrap gap-2">
-              {trip.members.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => setWho(m.id)}
-                  className="flex items-center gap-2 pl-1.5 pr-3 h-9 rounded-full border transition-colors"
-                  style={{
-                    borderColor: who === m.id ? ACCENT : "#E2E8F0",
-                    background: who === m.id ? "rgba(79,142,247,0.08)" : "transparent",
-                  }}
-                >
-                  <Avatar member={m} size={22} />
-                  <span className="text-[13px] text-neutral-700 dark:text-neutral-200">{m.name}</span>
-                </button>
-              ))}
+          {/* Walicaを参考にした「○○が○○の○○代で○○円かかった」の文章入力 */}
+          <div className="rounded-[16px] bg-neutral-50 dark:bg-neutral-800 px-4 py-5 text-[17px] leading-[2.4] text-neutral-800 dark:text-neutral-100">
+            <button
+              onClick={() => {
+                setWhoPickerOpen((v) => !v);
+                setForPickerOpen(false);
+              }}
+              className="inline-flex items-center px-2.5 py-0.5 mx-0.5 rounded-full font-bold align-middle transition-colors"
+              style={{ color: ACCENT, background: "rgba(79,142,247,0.12)" }}
+            >
+              {whoMember ? whoMember.name : "だれか"}
+            </button>
+            が
+            <button
+              onClick={() => {
+                setForPickerOpen((v) => !v);
+                setWhoPickerOpen(false);
+              }}
+              className="inline-flex items-center px-2.5 py-0.5 mx-0.5 rounded-full font-bold align-middle transition-colors"
+              style={{ color: SUCCESS, background: "rgba(60,203,127,0.12)" }}
+            >
+              {forLabel}
+            </button>
+            の
+            <input
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="宿泊"
+              className="inline-block w-20 mx-0.5 bg-transparent border-b-2 outline-none text-center align-middle placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
+              style={{ borderColor: "#CBD5E1" }}
+            />
+            代で
+            <input
+              type="number"
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              className="inline-block w-16 mx-0.5 bg-transparent border-b-2 outline-none text-center align-middle placeholder:text-neutral-300 dark:placeholder:text-neutral-600"
+              style={{ borderColor: "#CBD5E1" }}
+            />
+            円かかった
+          </div>
+
+          {whoPickerOpen && (
+            <div>
+              <SectionLabel>誰が払ったか</SectionLabel>
+              <div className="flex flex-wrap gap-2">
+                {trip.members.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      setWho(m.id);
+                      setWhoPickerOpen(false);
+                    }}
+                    className="flex items-center gap-2 pl-1.5 pr-3 h-9 rounded-full border transition-colors"
+                    style={{
+                      borderColor: who === m.id ? ACCENT : "#E2E8F0",
+                      background: who === m.id ? "rgba(79,142,247,0.08)" : "transparent",
+                    }}
+                  >
+                    <Avatar member={m} size={22} />
+                    <span className="text-[13px] text-neutral-700 dark:text-neutral-200">{m.name}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div>
-            <SectionLabel>金額</SectionLabel>
-            <input type="number" inputMode="numeric" className={inputCls} placeholder="例）12000" value={amount} onChange={(e) => setAmount(e.target.value)} />
-          </div>
-          <div>
-            <SectionLabel>カテゴリ</SectionLabel>
-            <input className={inputCls} placeholder="例）宿泊・食費・移動" value={category} onChange={(e) => setCategory(e.target.value)} />
-          </div>
-          {showForSelector && (
+          )}
+
+          {forPickerOpen && (
             <div>
               <SectionLabel>誰の分の支払いか</SectionLabel>
               <p className="text-[11px] text-neutral-400 mb-2">選んだ人たちだけで、この支払いを割り勘します</p>
@@ -1389,6 +1446,7 @@ function MoneyTab({ trip, updateTrip }) {
               </button>
             </div>
           )}
+
           <button
             disabled={!who || !amount || forIds.length === 0}
             onClick={addExpense}
