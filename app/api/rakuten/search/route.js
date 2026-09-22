@@ -35,6 +35,16 @@ export async function GET(request) {
     const data = await res.json();
 
     if (data.error) {
+      console.error(
+        "[rakuten search] rakuten api error",
+        JSON.stringify({
+          httpStatus: res.status,
+          error: data.error,
+          error_description: data.error_description,
+          applicationIdTail: applicationId.slice(-4),
+          applicationIdLength: applicationId.length,
+        })
+      );
       return Response.json({ error: data.error_description || "楽天APIエラー" }, { status: 502 });
     }
 
