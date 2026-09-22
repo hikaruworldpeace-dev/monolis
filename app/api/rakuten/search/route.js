@@ -53,6 +53,11 @@ export async function GET(request) {
       return Response.json({ error: data.error_description || "楽天APIエラー" }, { status: 502 });
     }
 
+    console.log(
+      "[rakuten search] ok",
+      JSON.stringify({ keyword, count: data.count, hits: data.hits, itemsLength: (data.Items || []).length })
+    );
+
     const items = (data.Items || []).map(({ Item }) => ({
       code: Item.itemCode,
       name: Item.itemName,
